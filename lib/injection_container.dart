@@ -75,6 +75,7 @@ Future<void> init() async {
       remoteDataSource: sl(),
       localDataSource: sl(),
       networkInfo: sl(),
+     profileLocalDataSource: sl(),
     ),
   );
 
@@ -123,6 +124,7 @@ Future<void> init() async {
       localDataSource: sl(),
       imgbbDataSource: sl(),
       networkInfo: sl(),
+       authLocalDataSource: sl(),
     ),
   );
 

@@ -31,7 +31,7 @@ class VerifyOTP implements UseCase<bool, VerifyOTPParams> {
       email: params.email,
       otpCode: params.otpCode,
       token: params.token,
-      requiresAuth: params.requiresAuth, // ✅
+      requiresAuth: params.requiresAuth, 
     );
   }
 }

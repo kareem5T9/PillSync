@@ -269,7 +269,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   void _onResetAuthState(ResetAuthState event, Emitter<AuthState> emit) {
     emit(const AuthIdle());
   }
-  void _onUpdateUserData(UpdateUserData event, Emitter<AuthState> emit) {
+ void _onUpdateUserData(UpdateUserData event, Emitter<AuthState> emit) {
   emit(Authenticated(event.updatedUser));
 }
 

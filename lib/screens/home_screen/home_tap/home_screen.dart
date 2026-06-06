@@ -124,7 +124,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 20),
 
-            _buildUserInfoCard(),
+           // _buildUserInfoCard(),
 
             const SizedBox(height: 25),
 
@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildUserInfoCard() {
+ /*  Widget _buildUserInfoCard() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
@@ -214,8 +214,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  Widget _buildInfoRow(String label, String value) {
+ 
+   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
@@ -230,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
     );
-  }
+  } */
 
   Widget _buildHealthTip() {
     return Container(

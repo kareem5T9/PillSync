@@ -1,4 +1,5 @@
 import 'package:dartz/dartz.dart';
+import 'package:pillsync/features/profile/data/datasources/profile_local_data_source.dart';
 
 import '../../../../core/errors/exceptions.dart';
 import '../../../../core/errors/failures.dart';
@@ -14,47 +15,70 @@ class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource _remoteDataSource;
   final AuthLocalDataSource _localDataSource;
   final NetworkInfo _networkInfo;
+  final ProfileLocalDataSource _profileLocalDataSource;
 
   AuthRepositoryImpl({
     required AuthRemoteDataSource remoteDataSource,
     required AuthLocalDataSource localDataSource,
     required NetworkInfo networkInfo,
+    required ProfileLocalDataSource profileLocalDataSource,
   }) : _remoteDataSource = remoteDataSource,
        _localDataSource = localDataSource,
-       _networkInfo = networkInfo;
+       _networkInfo = networkInfo,
+       _profileLocalDataSource = profileLocalDataSource;
 
   @override
-  Future<Either<Failure, User>> login({
-    required String email,
-    required String password,
-  }) async {
-    if (!await _networkInfo.isConnected) {
-      return const Left(NetworkFailure('No internet connection'));
-    }
-
-    try {
-      final request = LoginRequestModel(
-        emailAddress: email,
-        password: password,
-      );
-
-      final userModel = await _remoteDataSource.login(request);
-      await _localDataSource.cacheUser(userModel);
-      await _localDataSource.cacheToken(userModel.token);
-
-      return Right(userModel);
-    } on UnauthorizedException catch (e) {
-      return Left(UnauthorizedFailure(e.message));
-    } on NetworkException catch (e) {
-      return Left(NetworkFailure(e.message));
-    } on ServerException catch (e) {
-      return Left(ServerFailure(e.message));
-    } on CacheException catch (e) {
-      return Left(CacheFailure(e.message));
-    } catch (e) {
-      return Left(ServerFailure(e.toString()));
-    }
+Future<Either<Failure, User>> login({
+  required String email,
+  required String password,
+}) async {
+  if (!await _networkInfo.isConnected) {
+    return const Left(NetworkFailure('No internet connection'));
   }
+
+  try {
+    final request = LoginRequestModel(
+      emailAddress: email,
+      password: password,
+    );
+
+    final userModel = await _remoteDataSource.login(request);
+
+    final cachedUser = await _localDataSource.getCachedUser();
+
+    // Server never returns birthDate — read from our persistent store keyed by userId
+    final storedBirthDate = await _localDataSource.getBirthDate(userModel.userId);
+    final resolvedBirthDate = storedBirthDate ?? cachedUser?.birthDate;
+
+    // Phone: prefer server value, fall back to cache
+    final resolvedPhone =
+        (userModel.phoneNumber != null && userModel.phoneNumber!.isNotEmpty)
+            ? userModel.phoneNumber
+            : cachedUser?.phoneNumber;
+
+    final userWithImage = userModel.copyWith(
+      imageUrl: userModel.imageUrl ?? cachedUser?.imageUrl,
+      birthDate: resolvedBirthDate,
+      phoneNumber: resolvedPhone,
+      age: _calcAge(resolvedBirthDate),
+    );
+
+    await _localDataSource.cacheUser(userWithImage);
+    await _localDataSource.cacheToken(userWithImage.token);
+
+    return Right(userWithImage);
+  } on UnauthorizedException catch (e) {
+    return Left(UnauthorizedFailure(e.message));
+  } on NetworkException catch (e) {
+    return Left(NetworkFailure(e.message));
+  } on ServerException catch (e) {
+    return Left(ServerFailure(e.message));
+  } on CacheException catch (e) {
+    return Left(CacheFailure(e.message));
+  } catch (e) {
+    return Left(ServerFailure(e.toString()));
+  }
+}
 
   @override
   Future<Either<Failure, User>> register({
@@ -84,10 +108,27 @@ class AuthRepositoryImpl implements AuthRepository {
       );
 
       final userModel = await _remoteDataSource.register(request);
-      await _localDataSource.cacheUser(userModel);
-      await _localDataSource.cacheToken(userModel.token);
 
-      return Right(userModel);
+      // Server doesn't return birthDate — use what the user submitted
+      final resolvedBirthDate =
+          (userModel.birthDate != null && userModel.birthDate!.isNotEmpty)
+              ? userModel.birthDate
+              : birthDate;
+
+      // Persist birthDate independently so it survives logout
+      if (resolvedBirthDate != null && resolvedBirthDate.isNotEmpty) {
+        await _localDataSource.saveBirthDate(userModel.userId, resolvedBirthDate);
+      }
+
+      final userWithData = userModel.copyWith(
+        birthDate: resolvedBirthDate,
+        age: _calcAge(resolvedBirthDate),
+      );
+
+      await _localDataSource.cacheUser(userWithData);
+      await _localDataSource.cacheToken(userWithData.token);
+
+      return Right(userWithData);
     } on ServerException catch (e) {
       return Left(ServerFailure(e.message));
     } on NetworkException catch (e) {
@@ -188,6 +229,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, void>> logout() async {
     try {
       await _localDataSource.clearCache();
+      await _profileLocalDataSource.clearCache();
       return const Right(null);
     } on CacheException catch (e) {
       return Left(CacheFailure(e.message));
@@ -197,8 +239,8 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<Either<Failure, User?>> checkAuthStatus() async {
     try {
-      final hasUser = await _localDataSource.hasCachedUser();
-      if (!hasUser) return const Right(null);
+      final token = await _localDataSource.getCachedToken();
+      if (token == null || token.isEmpty) return const Right(null);
 
       final user = await _localDataSource.getCachedUser();
       return Right(user);
@@ -220,6 +262,23 @@ class AuthRepositoryImpl implements AuthRepository {
       return Left(ServerFailure(e.message));
     } on NetworkException catch (e) {
       return Left(NetworkFailure(e.message));
+    }
+  }
+
+  /// Calculate age from an ISO date string. Returns null if unparseable.
+  int? _calcAge(String? birthDate) {
+    if (birthDate == null || birthDate.isEmpty) return null;
+    try {
+      final dob = DateTime.parse(birthDate);
+      final today = DateTime.now();
+      int age = today.year - dob.year;
+      if (today.month < dob.month ||
+          (today.month == dob.month && today.day < dob.day)) {
+        age--;
+      }
+      return age;
+    } catch (_) {
+      return null;
     }
   }
 }

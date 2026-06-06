@@ -4,16 +4,22 @@ import '../models/user_model.dart';
 
 abstract class AuthLocalDataSource {
   Future<void> cacheUser(UserModel user);
+    Future<void> updateCachedUser(UserModel user);
   Future<UserModel?> getCachedUser();
   Future<void> clearCache();
   Future<bool> hasCachedUser();
   Future<void> cacheToken(String token);
   Future<String?> getCachedToken();
+
+  /// Persist birthDate independently so it survives logout/clearCache.
+  Future<void> saveBirthDate(String userId, String birthDate);
+  Future<String?> getBirthDate(String userId);
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   final FlutterSecureStorage _secureStorage;
   late final Box<UserModel> _userBox;
+  late final Box<String> _extraBox;
   bool _isInitialized = false;
 
   static const _secureOptions = AndroidOptions(
@@ -37,6 +43,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     }
 
     _userBox = await Hive.openBox<UserModel>('auth_user');
+    _extraBox = await Hive.openBox<String>('auth_extra');
     _isInitialized = true;
   }
 
@@ -51,7 +58,10 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     await _ensureInitialized();
     return _userBox.get('current_user');
   }
-
+@override
+  Future<void> updateCachedUser(UserModel user) async {
+    await _userBox.put('current_user', user); 
+  }
   @override
   Future<void> clearCache() async {
     await _ensureInitialized();
@@ -86,6 +96,18 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       aOptions: _secureOptions,
       iOptions: _iosOptions,
     );
+  }
+
+  @override
+  Future<void> saveBirthDate(String userId, String birthDate) async {
+    await _ensureInitialized();
+    await _extraBox.put('birthDate_$userId', birthDate);
+  }
+
+  @override
+  Future<String?> getBirthDate(String userId) async {
+    await _ensureInitialized();
+    return _extraBox.get('birthDate_$userId');
   }
 
   Future<void> _ensureInitialized() async {

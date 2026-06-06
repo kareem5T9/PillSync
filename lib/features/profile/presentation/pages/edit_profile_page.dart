@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:pillsync/utils/app_assets.dart';
 
 import '../../../../features/auth/domain/entities/user.dart';
 import '../../../../utils/app_colors.dart';
@@ -148,94 +147,119 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Widget _buildProfileAvatar() {
-    ImageProvider imageProvider;
-
-    if (_selectedImageFile != null) {
-      imageProvider = FileImage(_selectedImageFile!);
-    } else if (widget.user.imageUrl != null &&
-        widget.user.imageUrl!.isNotEmpty) {
-      imageProvider = NetworkImage(widget.user.imageUrl!);
-    } else {
-      imageProvider = const AssetImage(AppAssets.zewaidi);
-    }
-
-    return Stack(
-      alignment: Alignment.center,
-      children: [
+  return Stack(
+    alignment: Alignment.center,
+    children: [
+      // الصورة المختارة من الجهاز
+      if (_selectedImageFile != null)
         CircleAvatar(
           radius: 55,
-          backgroundImage: imageProvider,
-          onBackgroundImageError: (_, __) {},
+          backgroundImage: FileImage(_selectedImageFile!),
+        )
+      // صورة من imgbb (network)
+      else if (widget.user.imageUrl != null && widget.user.imageUrl!.isNotEmpty)
+        CircleAvatar(
+          radius: 55,
+          backgroundColor: Colors.grey[200],
+          child: ClipOval(
+            child: Image.network(
+              widget.user.imageUrl!,
+              width: 110,
+              height: 110,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: Color(0xFF00B4D8),
+                    strokeWidth: 2,
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return Icon(
+                  Icons.person,
+                  size: 55,
+                  color: Colors.grey[400],
+                );
+              },
+            ),
+          ),
+        )
+      // مفيش صورة خالص
+      else
+        CircleAvatar(
+          radius: 55,
+          backgroundColor: Colors.grey[200],
+          child: Icon(Icons.person, size: 55, color: Colors.grey[400]),
         ),
 
-        if (_isUploadingImage)
-          Container(
-            width: 110,
-            height: 110,
-            decoration: const BoxDecoration(
-              color: Colors.black45,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
+      // overlay أثناء الرفع
+      if (_isUploadingImage)
+        Container(
+          width: 110,
+          height: 110,
+          decoration: const BoxDecoration(
+            color: Colors.black45,
+            shape: BoxShape.circle,
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2.5,
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Uploading...',
-                    style: TextStyle(color: Colors.white, fontSize: 10),
-                  ),
-                ],
-              ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Uploading...',
+                  style: TextStyle(color: Colors.white, fontSize: 10),
+                ),
+              ],
             ),
           ),
+        ),
 
-        if (_uploadedImageUrl != null && !_isUploadingImage)
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: const BoxDecoration(
-                color: Colors.green,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check, color: Colors.white, size: 14),
-            ),
-          ),
-
+      // ✅ علامة النجاح
+      if (_uploadedImageUrl != null && !_isUploadingImage)
         Positioned(
           bottom: 0,
-          right: _uploadedImageUrl != null ? 20 : 0,
-          child: GestureDetector(
-            onTap: _isUploadingImage ? null : _pickImage,
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.darkBlue,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: const Icon(
-                Icons.camera_alt,
-                color: Colors.white,
-                size: 16,
-              ),
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(
+              color: Colors.green,
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.check, color: Colors.white, size: 14),
           ),
         ),
-      ],
-    );
-  }
 
+      // زرار الكاميرا
+      Positioned(
+        bottom: 0,
+        right: _uploadedImageUrl != null ? 20 : 0,
+        child: GestureDetector(
+          onTap: _isUploadingImage ? null : _pickImage,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF00B4D8),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+            child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+          ),
+        ),
+      ),
+    ],
+  );
+}
   @override
   Widget build(BuildContext context) {
     return Scaffold(

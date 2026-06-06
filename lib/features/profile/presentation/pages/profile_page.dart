@@ -5,7 +5,6 @@ import '../../../../features/auth/domain/entities/user.dart';
 import '../../../../features/auth/presentation/bloc/auth_bloc.dart';
 import '../../../../features/auth/presentation/bloc/auth_event.dart';
 import '../../../../features/auth/presentation/bloc/auth_state.dart';
-import '../../../../utils/app_assets.dart';
 import '../bloc/profile_bloc.dart';
 import '../bloc/profile_state.dart';
 import '../widgets/custom_profile_info_tile.dart';
@@ -72,19 +71,101 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
+  /// Returns "X years" calculated from an ISO date string, or null if unparseable.
+  String? _calculateAge(String? birthDate) {
+    if (birthDate == null || birthDate.isEmpty) return null;
+    try {
+      final dob = DateTime.parse(birthDate);
+      final today = DateTime.now();
+
+      int years = today.year - dob.year;
+      int months = today.month - dob.month;
+      int days = today.day - dob.day;
+
+      // Fix days first: borrow from previous month
+      if (days < 0) {
+        months--;
+        // Last day of the previous month relative to today
+        final lastDayOfPrevMonth =
+            DateTime(today.year, today.month, 0).day;
+        days += lastDayOfPrevMonth;
+      }
+      // Fix months: borrow from years
+      if (months < 0) {
+        years--;
+        months += 12;
+      }
+
+      // Build readable string
+      final parts = <String>[];
+      if (years > 0) parts.add('$years year${years > 1 ? 's' : ''}');
+      if (months > 0) parts.add('$months month${months > 1 ? 's' : ''}');
+      if (days > 0) parts.add('$days day${days > 1 ? 's' : ''}');
+      if (parts.isEmpty) parts.add('0 days');
+      return parts.join(', ');
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildProfileContent(BuildContext context, User user) {
+    
+    Widget _buildNetworkAvatar(String? imageUrl, {double radius = 60}) {
+  if (imageUrl != null && imageUrl.isNotEmpty) {
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: Colors.grey[200],
+      child: ClipOval(
+        child: Image.network(
+          imageUrl,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                color: const Color(0xFF00B4D8),
+                strokeWidth: 2,
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Icon(
+              Icons.person,
+              size: radius,
+              color: Colors.grey[400],
+            );
+          },
+        ),
+      ),
+    );
+  }
+  // مفيش صورة خالص → icon بدل asset
+  return CircleAvatar(
+    radius: radius,
+    backgroundColor: Colors.grey[200],
+    child: Icon(Icons.person, size: radius, color: Colors.grey[400]),
+  );
+}
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         const SizedBox(height: 20),
 
-        CircleAvatar(
+_buildNetworkAvatar(user.imageUrl, radius: 60),
+      
+        /* CircleAvatar(
           radius: 60,
           backgroundImage: user.imageUrl != null && user.imageUrl!.isNotEmpty
               ? NetworkImage(user.imageUrl!)
               : const AssetImage(AppAssets.profile_1) as ImageProvider,
           onBackgroundImageError: (_, __) {},
-        ),
+        ), */
         const SizedBox(height: 15),
 
         Text(
@@ -95,7 +176,6 @@ class ProfilePage extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        
         ProfileInfoTile(
           icon: Icons.person_outline,
           label: "Full Name",
@@ -124,9 +204,15 @@ class ProfilePage extends StatelessWidget {
               : "Not set",
         ),
 
+        ProfileInfoTile(
+          icon: Icons.hourglass_bottom,
+          label: "Age",
+          value: _calculateAge(user.birthDate) ??
+              (user.age != null ? '${user.age} years' : "Not set"),
+        ),
+
         const Spacer(),
 
-        
         Padding(
           padding: const EdgeInsets.all(20),
           child: ElevatedButton.icon(
